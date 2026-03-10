@@ -14,7 +14,7 @@ if (string.IsNullOrEmpty(apikey))
 }
 
 var sessionName = args.Length > 0 ? args[0] : "default";
-var sessionsDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sessions");
+var sessionsDir = Path.Combine(Directory.GetCurrentDirectory(), "sessions");
 Directory.CreateDirectory(sessionsDir);
 var sessionPath = Path.Combine(sessionsDir, $"{sessionName}.jsonl");
 
