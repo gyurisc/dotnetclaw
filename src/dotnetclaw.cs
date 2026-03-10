@@ -27,14 +27,15 @@ var jsonOptions = new JsonSerializerOptions
     TypeInfoResolver = new DefaultJsonTypeInfoResolver()
 };
 
+var soulPath = Path.Combine(Directory.GetCurrentDirectory(), "workspace", "SOUL.md");
+var soul = File.Exists(soulPath)
+    ? File.ReadAllText(soulPath)
+    : "You are DotNetClaw, a pragmatic AI agent.";
+
 var systemMessage = new Dictionary<string, object?>
 {
     { "role", "system" },
-    { "content", """
-        You are DotNetClaw, a pragmatic AI agent.
-        When a user asks for the current time, you MUST call the function `get_current_time`.
-        Do not answer directly if the time is requested. Always use the tool.
-        """ }
+    { "content", soul }
 };
 
 var messages = new List<Dictionary<string, object?>> { systemMessage };
