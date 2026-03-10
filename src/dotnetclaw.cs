@@ -13,7 +13,8 @@ if (string.IsNullOrEmpty(apikey))
     return;
 }
 
-var sessionName = args.Length > 0 ? args[0] : "default";
+var debug = args.Contains("--debug");
+var sessionName = args.Where(a => !a.StartsWith("--")).FirstOrDefault() ?? "default";
 var sessionsDir = Path.Combine(Directory.GetCurrentDirectory(), "sessions");
 Directory.CreateDirectory(sessionsDir);
 var sessionPath = Path.Combine(sessionsDir, $"{sessionName}.jsonl");
@@ -76,6 +77,19 @@ while (true)
         };
 
         var json = JsonSerializer.Serialize(request, jsonOptions);
+
+        if (debug)
+        {
+            Console.WriteLine("--- REQUEST ---");
+            Console.WriteLine(JsonSerializer.Serialize(request, new JsonSerializerOptions
+            {
+                TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+                WriteIndented = true
+            }));
+            Console.WriteLine("--- END ---");
+            Console.WriteLine();
+        }
+
         var response = await http.PostAsync(
             "https://api.openai.com/v1/chat/completions",
             new StringContent(json, Encoding.UTF8, "application/json")
