@@ -33,6 +33,11 @@ var soul = File.Exists(soulPath)
     ? File.ReadAllText(soulPath)
     : "You are DotNetClaw, a pragmatic AI agent.";
 
+if (debug)
+    Console.WriteLine(File.Exists(soulPath)
+        ? $"SOUL loaded from {soulPath}"
+        : $"SOUL.md not found at {soulPath}, using default");
+
 var systemMessage = new Dictionary<string, object?>
 {
     { "role", "system" },
