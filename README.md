@@ -2,6 +2,8 @@
 
 A .NET rewrite of [OpenClaw](https://openclaw.ai) for learning AI agent concepts in C#.
 
+Following dabit3's ["Building a Persistent AI Assistant from First Principles"](https://gist.githubusercontent.com/dabit3/bc60d3bea0b02927995cd9bf53c3db32/raw/be311031f1a4b8686cce8be3d2251703ff037a67/you_couldve_invented_openclaw.md) ([tweet](https://x.com/dabit3/status/2021387483364151451)).
+
 ## Setup
 
 Requires .NET 10 and an OpenAI API key:

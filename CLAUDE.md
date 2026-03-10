@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A .NET 10 rewrite of [OpenClaw](https://openclaw.ai) — a side project for learning AI agent concepts in C#. Prioritize simplicity and fun over production polish.
 
+Follows dabit3's [guide](https://gist.githubusercontent.com/dabit3/bc60d3bea0b02927995cd9bf53c3db32/raw/be311031f1a4b8686cce8be3d2251703ff037a67/you_couldve_invented_openclaw.md) on building a persistent AI assistant from first principles.
+
 Currently at v0.0.1: raw HttpClient calls to the OpenAI Chat Completions API with tool/function-calling, a single tool (`get_current_time`), and in-memory conversation history.
 
 ## Build & Run

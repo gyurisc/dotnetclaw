@@ -1,13 +1,10 @@
-﻿#pragma warning disable IL2026
+#pragma warning disable IL2026
 #pragma warning disable IL3050
 
-using System.ComponentModel.DataAnnotations;
 using System.Net.Http.Headers;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-
 
 var apikey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 if (string.IsNullOrEmpty(apikey))
@@ -15,7 +12,6 @@ if (string.IsNullOrEmpty(apikey))
     Console.WriteLine("OPENAI_API_KEY not set.");
     return;
 }
-
 
 var http = new HttpClient();
 http.DefaultRequestHeaders.Authorization =
@@ -28,14 +24,12 @@ var jsonOptions = new JsonSerializerOptions
 
 var messages = new List<Dictionary<string, object?>>
 {
-    new Dictionary<string, object?>
+    new()
     {
         { "role", "system" },
-        {  "content", """
+        { "content", """
             You are DotNetClaw, a pragmatic AI agent.
-
             When a user asks for the current time, you MUST call the function `get_current_time`.
-
             Do not answer directly if the time is requested. Always use the tool.
             """ }
     }
@@ -56,44 +50,22 @@ while (true)
     if (string.Equals(input, "exit", StringComparison.OrdinalIgnoreCase))
         break;
 
-    messages.Add(new Dictionary<string, object?>
-    {
-        { "role", "user" },
-        { "content", input ?? ""}
-    });
+    messages.Add(new() { { "role", "user" }, { "content", input } });
 
-    bool awaitingToolResult = true;
+    var awaitingToolResult = true;
 
     while (awaitingToolResult)
     {
         var request = new
         {
             model = "gpt-4.1-mini",
-            messages = messages,
-            tools = new[]
-            {
-                new
-                {
-                    type = "function",
-                    function = new
-                    {
-                        name = "get_current_time",
-                        description = "Returns the current UTC time",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new { },
-                            required = Array.Empty<string>()
-                        }
-                    }
-                }
-            },
+            messages,
+            tools = GetTools(),
             tool_choice = "auto",
             temperature = 0.2,
         };
 
         var json = JsonSerializer.Serialize(request, jsonOptions);
-
         var response = await http.PostAsync(
             "https://api.openai.com/v1/chat/completions",
             new StringContent(json, Encoding.UTF8, "application/json")
@@ -103,62 +75,76 @@ while (true)
         {
             Console.WriteLine($"Error: {response.StatusCode}");
             Console.WriteLine(await response.Content.ReadAsStringAsync());
-            continue;
+            break;
         }
 
         var responseJson = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(responseJson);
 
-        var message = doc
-            .RootElement
+        var message = doc.RootElement
             .GetProperty("choices")[0]
             .GetProperty("message");
 
         if (message.TryGetProperty("tool_calls", out var toolCalls))
         {
-            messages.Add(new Dictionary<string, object?>
+            messages.Add(new()
             {
                 { "role", "assistant" },
                 { "content", null },
                 { "tool_calls", JsonDocument.Parse(toolCalls.GetRawText()).RootElement.Clone() }
             });
 
-            var toolName = toolCalls[0]
-                .GetProperty("function")
-                .GetProperty("name")
-                .GetString();
-
-            if (toolName == "get_current_time")
+            foreach (var call in toolCalls.EnumerateArray())
             {
-                var toolResult = DateTime.UtcNow.ToString("O");
-                messages.Add(new Dictionary<string, object?>
+                var name = call.GetProperty("function").GetProperty("name").GetString()!;
+                var toolArgs = call.GetProperty("function").GetProperty("arguments").GetString()!;
+                var result = ExecuteTool(name, toolArgs);
+
+                messages.Add(new()
                 {
                     { "role", "tool" },
-                    { "content", toolResult },
-                    { "tool_call_id", toolCalls[0].GetProperty("id").GetString() }
+                    { "content", result },
+                    { "tool_call_id", call.GetProperty("id").GetString() }
                 });
-
-                continue; // call model again with tool result 
             }
+
+            continue;
         }
-        else
-        {
-            var content = message
-                .GetProperty("content")
-                .GetString();
 
-            Console.WriteLine(content);
-            Console.WriteLine();
+        var content = message.GetProperty("content").GetString() ?? "";
+        Console.WriteLine(content);
+        Console.WriteLine();
 
-            messages.Add(
-                new Dictionary<string, object?>
-                {
-                    { "role", "assistant" },
-                    { "content", content ?? "" }
-                }
-            );
-
-            awaitingToolResult = false;
-        }
+        messages.Add(new() { { "role", "assistant" }, { "content", content } });
+        awaitingToolResult = false;
     }
 }
+
+// --- Tool definitions ---
+
+object[] GetTools() =>
+[
+    new
+    {
+        type = "function",
+        function = new
+        {
+            name = "get_current_time",
+            description = "Returns the current UTC time",
+            parameters = new
+            {
+                type = "object",
+                properties = new { },
+                required = Array.Empty<string>()
+            }
+        }
+    }
+];
+
+// --- Tool dispatch ---
+
+string ExecuteTool(string name, string toolArgs) => name switch
+{
+    "get_current_time" => DateTime.UtcNow.ToString("O"),
+    _ => $"Unknown tool: {name}"
+};
