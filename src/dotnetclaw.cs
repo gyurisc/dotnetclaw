@@ -1,4 +1,4 @@
-#pragma warning disable IL2026
+﻿#pragma warning disable IL2026
 #pragma warning disable IL3050
 
 using System.ComponentModel.DataAnnotations;
@@ -18,7 +18,7 @@ if (string.IsNullOrEmpty(apikey))
 
 
 var http = new HttpClient();
-http.DefaultRequestHeaders.Authorization = 
+http.DefaultRequestHeaders.Authorization =
     new AuthenticationHeaderValue("Bearer", apikey);
 
 var jsonOptions = new JsonSerializerOptions
@@ -39,7 +39,7 @@ var messages = new List<Dictionary<string, object?>>
             Do not answer directly if the time is requested. Always use the tool.
             """ }
     }
-}; 
+};
 
 Console.WriteLine("DotNetClaw v0.0.1");
 Console.WriteLine("Type 'exit' to quit.");
@@ -47,8 +47,11 @@ Console.WriteLine();
 
 while (true)
 {
-    Console.Write("> "); 
-    var input = Console.ReadLine();
+    Console.Write("> ");
+    var input = Console.ReadLine()?.Trim();
+
+    if (string.IsNullOrEmpty(input))
+        continue;
 
     if (string.Equals(input, "exit", StringComparison.OrdinalIgnoreCase))
         break;
@@ -61,33 +64,33 @@ while (true)
 
     bool awaitingToolResult = true;
 
-    while(awaitingToolResult)
+    while (awaitingToolResult)
     {
         var request = new
         {
-            model = "gpt-4.1-mini", 
-            messages = messages,         
-            tools = new []
+            model = "gpt-4.1-mini",
+            messages = messages,
+            tools = new[]
             {
                 new
                 {
-                    type = "function", 
+                    type = "function",
                     function = new
                     {
                         name = "get_current_time",
-                        description = "Returns the current UTC time", 
+                        description = "Returns the current UTC time",
                         parameters = new
                         {
-                            type = "object", 
-                            properties = new { }, 
+                            type = "object",
+                            properties = new { },
                             required = Array.Empty<string>()
                         }
                     }
                 }
-            }, 
+            },
             tool_choice = "auto",
-            temperature = 0.2,  
-        }; 
+            temperature = 0.2,
+        };
 
         var json = JsonSerializer.Serialize(request, jsonOptions);
 
@@ -113,10 +116,10 @@ while (true)
 
         if (message.TryGetProperty("tool_calls", out var toolCalls))
         {
-            messages.Add(new Dictionary<string, object?> 
+            messages.Add(new Dictionary<string, object?>
             {
                 { "role", "assistant" },
-                { "content", null }, 
+                { "content", null },
                 { "tool_calls", JsonDocument.Parse(toolCalls.GetRawText()).RootElement.Clone() }
             });
 
@@ -125,19 +128,19 @@ while (true)
                 .GetProperty("name")
                 .GetString();
 
-            if(toolName == "get_current_time") 
+            if (toolName == "get_current_time")
             {
                 var toolResult = DateTime.UtcNow.ToString("O");
                 messages.Add(new Dictionary<string, object?>
                 {
                     { "role", "tool" },
-                    { "content", toolResult }, 
+                    { "content", toolResult },
                     { "tool_call_id", toolCalls[0].GetProperty("id").GetString() }
                 });
 
                 continue; // call model again with tool result 
             }
-        } 
+        }
         else
         {
             var content = message
@@ -145,7 +148,7 @@ while (true)
                 .GetString();
 
             Console.WriteLine(content);
-            Console.WriteLine();            
+            Console.WriteLine();
 
             messages.Add(
                 new Dictionary<string, object?>
@@ -153,9 +156,9 @@ while (true)
                     { "role", "assistant" },
                     { "content", content ?? "" }
                 }
-            );   
+            );
 
-            awaitingToolResult = false;     
-        }        
+            awaitingToolResult = false;
+        }
     }
 }
