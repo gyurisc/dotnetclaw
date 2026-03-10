@@ -13,6 +13,11 @@ if (string.IsNullOrEmpty(apikey))
     return;
 }
 
+var sessionName = args.Length > 0 ? args[0] : "default";
+var sessionsDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "sessions");
+Directory.CreateDirectory(sessionsDir);
+var sessionPath = Path.Combine(sessionsDir, $"{sessionName}.jsonl");
+
 var http = new HttpClient();
 http.DefaultRequestHeaders.Authorization =
     new AuthenticationHeaderValue("Bearer", apikey);
@@ -22,20 +27,22 @@ var jsonOptions = new JsonSerializerOptions
     TypeInfoResolver = new DefaultJsonTypeInfoResolver()
 };
 
-var messages = new List<Dictionary<string, object?>>
+var systemMessage = new Dictionary<string, object?>
 {
-    new()
-    {
-        { "role", "system" },
-        { "content", """
-            You are DotNetClaw, a pragmatic AI agent.
-            When a user asks for the current time, you MUST call the function `get_current_time`.
-            Do not answer directly if the time is requested. Always use the tool.
-            """ }
-    }
+    { "role", "system" },
+    { "content", """
+        You are DotNetClaw, a pragmatic AI agent.
+        When a user asks for the current time, you MUST call the function `get_current_time`.
+        Do not answer directly if the time is requested. Always use the tool.
+        """ }
 };
 
+var messages = new List<Dictionary<string, object?>> { systemMessage };
+var restored = LoadSession(sessionPath);
+messages.AddRange(restored);
+
 Console.WriteLine("DotNetClaw v0.0.1");
+Console.WriteLine($"Session: {sessionName} ({restored.Count} messages loaded)");
 Console.WriteLine("Type 'exit' to quit.");
 Console.WriteLine();
 
@@ -50,7 +57,9 @@ while (true)
     if (string.Equals(input, "exit", StringComparison.OrdinalIgnoreCase))
         break;
 
-    messages.Add(new() { { "role", "user" }, { "content", input } });
+    var userMsg = new Dictionary<string, object?> { { "role", "user" }, { "content", input } };
+    messages.Add(userMsg);
+    AppendToSession(sessionPath, userMsg);
 
     var awaitingToolResult = true;
 
@@ -87,12 +96,14 @@ while (true)
 
         if (message.TryGetProperty("tool_calls", out var toolCalls))
         {
-            messages.Add(new()
+            var assistantMsg = new Dictionary<string, object?>
             {
                 { "role", "assistant" },
                 { "content", null },
                 { "tool_calls", JsonDocument.Parse(toolCalls.GetRawText()).RootElement.Clone() }
-            });
+            };
+            messages.Add(assistantMsg);
+            AppendToSession(sessionPath, assistantMsg);
 
             foreach (var call in toolCalls.EnumerateArray())
             {
@@ -100,12 +111,14 @@ while (true)
                 var toolArgs = call.GetProperty("function").GetProperty("arguments").GetString()!;
                 var result = ExecuteTool(name, toolArgs);
 
-                messages.Add(new()
+                var toolMsg = new Dictionary<string, object?>
                 {
                     { "role", "tool" },
                     { "content", result },
                     { "tool_call_id", call.GetProperty("id").GetString() }
-                });
+                };
+                messages.Add(toolMsg);
+                AppendToSession(sessionPath, toolMsg);
             }
 
             continue;
@@ -115,9 +128,32 @@ while (true)
         Console.WriteLine(content);
         Console.WriteLine();
 
-        messages.Add(new() { { "role", "assistant" }, { "content", content } });
+        var replyMsg = new Dictionary<string, object?> { { "role", "assistant" }, { "content", content } };
+        messages.Add(replyMsg);
+        AppendToSession(sessionPath, replyMsg);
         awaitingToolResult = false;
     }
+}
+
+// --- Session persistence ---
+
+List<Dictionary<string, object?>> LoadSession(string path)
+{
+    var loaded = new List<Dictionary<string, object?>>();
+    if (!File.Exists(path)) return loaded;
+
+    foreach (var line in File.ReadLines(path))
+    {
+        if (string.IsNullOrWhiteSpace(line)) continue;
+        var msg = JsonSerializer.Deserialize<Dictionary<string, object?>>(line, jsonOptions);
+        if (msg != null) loaded.Add(msg);
+    }
+    return loaded;
+}
+
+void AppendToSession(string path, Dictionary<string, object?> message)
+{
+    File.AppendAllText(path, JsonSerializer.Serialize(message, jsonOptions) + "\n");
 }
 
 // --- Tool definitions ---
